@@ -1,0 +1,90 @@
+version: '3'
+
+volumes:
+  codelex-redis:
+    driver: local
+
+networks:
+  codelex:
+    driver: bridge
+
+services:
+  nginx-app-ping:
+    build:
+      context: ./app-ping
+      dockerfile: .docker/nginx.app-ping.dockerfile
+    container_name: nginx-app-ping
+    depends_on:
+      - php-app-ping
+      - redis
+      - rabbit-mq
+    volumes:
+      - './app-ping:/var/www/html'
+    ports:
+      - '8080:80'
+    networks:
+      - codelex
+  php-app-ping:
+    build:
+      context: ./app-ping
+      dockerfile: .docker/php.dockerfile
+    container_name: php-app-ping
+    volumes:
+      - './app-ping:/var/www/html'
+    networks:
+      - codelex
+  nginx-app-pong:
+    build:
+      context: ./app-pong
+      dockerfile: .docker/nginx.app-pong.dockerfile
+    container_name: nginx-app-pong
+    depends_on:
+      - php-app-pong
+      - redis
+      - rabbit-mq
+    volumes:
+      - './app-pong:/var/www/html'
+    ports:
+      - '8081:80'
+    networks:
+      - codelex
+  php-app-pong:
+    build:
+      context: ./app-pong
+      dockerfile: .docker/php.dockerfile
+    container_name: php-app-pong
+    volumes:
+      - './app-pong:/var/www/html'
+    networks:
+      - codelex
+  rabbit-mq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbit-mq
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    networks:
+      - codelex
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - 'codelex-redis:/data'
+    networks:
+      - codelex
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      retries: 3
+      timeout: 5s
+  consumer:
+    build:
+      context: ./app-ping
+      dockerfile: .docker/php.dockerfile
+    container_name: msg-queue-consumer
+    volumes:
+      - './app-ping:/var/www/html'
+    networks:
+      - codelex
+    entrypoint: [ "php", "consumer.php" ]
